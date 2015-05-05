@@ -6,7 +6,7 @@ from collections import defaultdict
 
 relationships_reg = []
 
-# TODO: should be in mongomodels.relationships
+# TODO: should be in mongomodels.relationships or something like that
 def belongs_to(klass_or_name, rel_column=None, backref=None ):
     import inspect
     curframe = inspect.currentframe()
@@ -284,7 +284,6 @@ def process_any_remaining_relationships():
     for rel in relationships_reg:
         # are we yet defined
         klass = model_registery.get(rel['called_in_class'])
-        print "--->>>", rel
         if isinstance(rel['other'], str):
             other = model_registery.get(rel['other'].capitalize())
         else:
@@ -320,7 +319,7 @@ class MongoModel(object):
             if len(str(ov)) > 50:
                 ov = ov[0:50]
             col_repr.append('%s:%s' % (k, ov))
-        return u'<%s(%s) object at  %s>' % (self.__class__.__name__, ' '.join(col_repr), id(id))
+        return u'<%s(%s) object at  %s>' % (self.__class__.__name__, ' '.join(col_repr), id(self))
 
     @classproperty
     def query(self):
@@ -387,7 +386,7 @@ class Query(object):
 
         self.limit_ = None
         self.offset_ = None
-
+        self.sort_ = None
 
     def filter(self, *criterias):
         for criteria in criterias:
@@ -417,13 +416,20 @@ class Query(object):
     def get_connection(self):
         return connections.get_default()[self.from_.__collection__]
 
+    def sort(self, *args):
+        self.sort_ = args
+
     def get_cursor(self):
         cursor = self.get_connection().find(self.get_criteria())
         # TODO: order, skip, offset
         if self.limit_:
             cursor.limit(self.limit_)
+
         if self.offset_:
             cursor.skip(self.offset_)
+
+        if self.sort_:
+            cursor.sort(*self.sort_)
 
         return cursor
 
@@ -431,6 +437,10 @@ class Query(object):
         self.limit_ = i
 
     def one(self):
+        """
+        returns the first instance found in collection, raises exception if
+        there is more than one instance or if there is no instance found
+        """
         self.limit(2)
         u = self.get_cursor()
         u = list(u)
@@ -440,7 +450,13 @@ class Query(object):
         return self.from_(**u[0])
 
     def first(self):
-        return self.from_(**self.get_cursor()[0])
+        """
+        returns first instance found in the collection, or None
+        """
+        try:
+            return self.from_(**self.get_cursor()[0])
+        except IndexError:
+            return None
 
     def delete(self):
         return self.get_connection().remove(self.get_criteria())
@@ -450,7 +466,7 @@ class Query(object):
 
     def __iter__(self):
         for o in self.get_cursor():
-            yield o
+            yield self.from_(**o)
 
     def all(self):
         return [self.from_(**v) for v in self.get_cursor()]
@@ -464,9 +480,6 @@ class RelationshipHasOne(object):
     def __get__(self, instance, owner):
         return RelationshipHasOneQuery(self.other, instance, self.rel_column).\
             filter({'_id': getattr(instance, self.rel_column)}).first()
-
-    def __set__(self, instance, value):
-        pass
 
 class RelationshipBelongsTo(object):
     def __init__(self, klass, other, rel_column=None, backref=None, **kwargs):

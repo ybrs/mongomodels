@@ -3,7 +3,7 @@ import pymongo
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-from mongomodels.column import connections, MongoModel, String, Integer, \
+from mongomodels import connections, MongoModel, String, Integer, \
     Column, or_, ValidationError, Boolean, belongs_to
 
 class User(MongoModel):

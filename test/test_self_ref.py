@@ -3,7 +3,7 @@ import pymongo
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-from mongomodels.column import connections, MongoModel, String, Integer, \
+from mongomodels import connections, MongoModel, String, Integer, \
     Column, or_, ValidationError, Boolean, belongs_to
 
 class Category(MongoModel):
@@ -27,6 +27,7 @@ class TestColumns(unittest.TestCase):
         assert parent.children.first()._id == child._id
         assert child.parent._id == parent._id
         parent.children.remove(child)
+        assert parent.parent is None
 
 if __name__ == '__main__':
     unittest.main()

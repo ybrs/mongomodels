@@ -3,7 +3,7 @@ import pymongo
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-from mongomodels.column import connections, MongoModel, String, Integer, \
+from mongomodels import connections, MongoModel, String, Integer, \
     Column, or_, ValidationError, Boolean, belongs_to
 
 class User(MongoModel):
@@ -50,7 +50,6 @@ class TestColumns(unittest.TestCase):
         p.notes.add(note)
         assert u.projects.first().notes.first()._id == note._id
 
-
     def test_basic_crud(self):
         u = User()
         u.age = 15
@@ -83,7 +82,6 @@ class TestColumns(unittest.TestCase):
 
 
         dbusers = User.query.filter(User.age.in_([16, 20])).all()
-        print dbusers
         assert len(dbusers) == 2
 
         User.query.filter(User.age < 20).delete()
@@ -113,7 +111,8 @@ class TestColumns(unittest.TestCase):
         dbusers = User.query.filter(User.age == 25).filter_by(name='foo').all()
         assert len(dbusers) == 0
 
-
+        dbusers = User.query.filter(User.age == 25).filter({'name': {'$regex': '^fo'}}).all()
+        assert len(dbusers) == 1
 
 
 if __name__ == '__main__':
