@@ -14,7 +14,7 @@ setup(
     url="http://github.com/ybrs/mongomodels",
     author_email='aybars.badur@gmail.com',
     packages=['mongomodels'],
-    install_requires=['pymongo'],
+    install_requires=['pymongo', 'inflection'],
     classifiers = [
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

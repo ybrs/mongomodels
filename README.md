@@ -98,6 +98,12 @@ u.children.add(child)
 
 ```
 
+## Install
+for now you can install it with pip from github
+
+```
+pip install git+https://github.com/ybrs/mongomodels.git
+```
+
 ## License
 This project is licensed with MIT
-
