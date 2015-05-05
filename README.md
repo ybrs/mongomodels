@@ -102,7 +102,7 @@ u.children.add(child)
 for now you can install it with pip from github
 
 ```
-pip install git+https://github.com/ybrs/mongomodels.git
+pip install -U git+https://github.com/ybrs/mongomodels.git
 ```
 
 ## License
