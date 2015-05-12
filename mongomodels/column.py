@@ -1,24 +1,9 @@
 from bson.objectid import ObjectId as ObjectId_
-import logging
-logger = logging.getLogger(__name__)
+from .base import relationships_reg, model_registery, connections
 import inflection
-from collections import defaultdict
+import logging
 
-relationships_reg = []
-
-# TODO: should be in mongomodels.relationships or something like that
-def belongs_to(klass_or_name, rel_column=None, backref=None ):
-    import inspect
-    curframe = inspect.currentframe()
-    calframe = inspect.getouterframes(curframe, 2)
-    called_in_class = calframe[1][3]
-    relationships_reg.append({'called_in_class': called_in_class,
-                              'relationship': 'belongs_to',
-                              'other': klass_or_name,
-                              'rel_column': rel_column, 'backref': backref})
-    return klass_or_name
-
-
+logger = logging.getLogger(__name__)
 
 class ValidationError(Exception):
     pass
@@ -246,8 +231,6 @@ class Column(object):
         """
         raise Exception('not implemented')
 
-model_registery = {}
-
 class MongoModelMeta(type):
 
     def __init__(cls, name, bases, dct):
@@ -277,7 +260,6 @@ class MongoModelMeta(type):
 class classproperty(property):
     def __get__(self, cls, owner):
         return classmethod(self.fget).__get__(None, owner)()
-
 
 def process_any_remaining_relationships():
     t = []
@@ -360,24 +342,6 @@ class MongoModel(object):
         else:
             self.insert()
 
-class Connections(object):
-    _connections = {}
-
-    def get_default(self):
-        return self._connections['default']
-
-    def add_(self, name, connection):
-        self._connections[name] = connection
-
-    def add(self, *args):
-        if len(args) == 1:
-            self.add_('default', args[0])
-        else:
-            self.add_(*args)
-
-connections = Connections()
-
-
 class Query(object):
 
     def __init__(self, from_):
@@ -421,7 +385,7 @@ class Query(object):
 
     def get_cursor(self):
         cursor = self.get_connection().find(self.get_criteria())
-        # TODO: order, skip, offset
+
         if self.limit_:
             cursor.limit(self.limit_)
 
@@ -472,6 +436,9 @@ class Query(object):
         return [self.from_(**v) for v in self.get_cursor()]
 
 class RelationshipHasOne(object):
+    """
+    this is used in reverse of belongs_to, RelationshipBelongsTo
+    """
     def __init__(self, klass, other, rel_column):
         self.klass = klass
         self.other = other
@@ -482,6 +449,10 @@ class RelationshipHasOne(object):
             filter({'_id': getattr(instance, self.rel_column)}).first()
 
 class RelationshipBelongsTo(object):
+    """
+    this is the property added by belongs_to(obj) helper.
+
+    """
     def __init__(self, klass, other, rel_column=None, backref=None, **kwargs):
         self.klass = klass
         self.other = other
@@ -508,7 +479,7 @@ class RelationshipBelongsTo(object):
 
 class RelationshipHasOneQuery(Query):
     """
-    this is used for reverse property for many to many relationship
+    this is used for reverse property for one to many relationship
 
     eg:
         >>> class Parent(MongoModel):
