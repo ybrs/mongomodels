@@ -291,8 +291,17 @@ class MongoModel(object):
         for k, v in self.__columns__.iteritems():
             setattr(self, k, getattr(v, 'default_value'))
 
+        self.__connection__ = kwargs.pop('__connection__', connections.get_default())
+
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
+
+    def set_connection(self, connection):
+        self.__connection__ = connection
+        return self
+
+    def get_connection(self):
+        return self.__connection__.pymongo_connection
 
     def __repr__(self):
         col_repr = []
@@ -311,6 +320,10 @@ class MongoModel(object):
         """
         return Query(from_=self)
 
+    @classmethod
+    def query_from_connection(self, connection):
+        return Query(from_=self, connection=connection)
+
     def validate(self):
         for k, v in self.__class__.__columns__.iteritems():
             if not v.validate(getattr(self, k)):
@@ -321,7 +334,7 @@ class MongoModel(object):
         for k, v in self.__columns__.iteritems():
             obj[k] = getattr(self, k)
         obj.pop('_id')
-        self._id = connections.get_default()[self.__collection__].insert(obj)
+        self._id = self.get_connection()[self.__collection__].insert(obj)
 
     def update(self):
         criteria = {'_id': self._id}
@@ -329,11 +342,11 @@ class MongoModel(object):
         for k, v in self.__columns__.iteritems():
             obj[k] = getattr(self, k)
         obj.pop('_id')
-        connections.get_default()[self.__collection__].update(criteria, {'$set': obj})
+        self.get_connection()[self.__collection__].update(criteria, {'$set': obj})
 
     def delete(self):
         criteria = {'_id': self._id}
-        connections.get_default()[self.__collection__].remove(criteria)
+        self.get_connection()[self.__collection__].remove(criteria)
 
     def save(self):
         self.validate()
@@ -344,13 +357,17 @@ class MongoModel(object):
 
 class Query(object):
 
-    def __init__(self, from_):
+    def __init__(self, from_, connection=None):
         self.criterias = []
         self.from_ = from_
 
         self.limit_ = None
         self.offset_ = None
         self.sort_ = None
+
+        self.connection  = connection
+        if self.connection is None:
+            self.connection = connections.get_default()
 
     def filter(self, *criterias):
         for criteria in criterias:
@@ -378,7 +395,7 @@ class Query(object):
         return {'$and': compiled}
 
     def get_connection(self):
-        return connections.get_default()[self.from_.__collection__]
+        return self.connection.pymongo_connection[self.from_.__collection__]
 
     def sort(self, *args):
         self.sort_ = args
@@ -411,14 +428,19 @@ class Query(object):
         assert u, "expected one object"
         if len(u) > 1:
             assert u, "expected one object, more than one received"
-        return self.from_(**u[0])
+        return self.from_(**self.prepare_data(u[0]))
+
+    def prepare_data(self, data):
+        data['__connection___'] = self.connection
+        return data
 
     def first(self):
         """
         returns first instance found in the collection, or None
         """
         try:
-            return self.from_(**self.get_cursor()[0])
+            data = self.get_cursor()[0]
+            return self.from_(**self.prepare_data(data))
         except IndexError:
             return None
 
@@ -430,7 +452,7 @@ class Query(object):
 
     def __iter__(self):
         for o in self.get_cursor():
-            yield self.from_(**o)
+            yield self.from_(self.prepare_data(**o))
 
     def all(self):
         return [self.from_(**v) for v in self.get_cursor()]
