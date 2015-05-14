@@ -399,6 +399,7 @@ class Query(object):
 
     def sort(self, *args):
         self.sort_ = args
+        return self
 
     def get_cursor(self):
         cursor = self.get_connection().find(self.get_criteria())
