@@ -490,7 +490,7 @@ class Query(object):
 
     def __iter__(self):
         for o in self.get_cursor():
-            yield self.from_(self.prepare_data(**o))
+            yield self.from_(**self.prepare_data(o))
 
     def all(self):
         return [self.from_(**v) for v in self.get_cursor()]
@@ -681,6 +681,25 @@ class RelationshipQueryThrough(Query):
 
         if through_record:
             through_record.delete()
+
+    def __iter__(self):
+        for t in Query(from_=self.through).filter({self.right_rel_column.name: self.owner._id}):
+            left_id = getattr(t, self.left_rel_column.name)
+            yield Query(from_=self.from_).filter({'_id': left_id}).first()
+
+    def first(self):
+        for i in self:
+            return i
+
+    def delete(self):
+        raise Exception('Not implemented')
+
+    def count(self):
+        return Query(from_=self.through)\
+            .filter({self.right_rel_column.name: self.owner._id}).count()
+
+    def all(self):
+        return list(self)
 
 
 if __name__ == "__main__":

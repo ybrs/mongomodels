@@ -35,6 +35,10 @@ class TestManyToMany(unittest.TestCase):
     def test_many_to_many_add(self):
         c = Category(name='cat')
         c.save()
+
+        c2 = Category(name='cat 2')
+        c2.save()
+
         p = Product(name='product')
         c.products.add(p)
 
@@ -43,14 +47,22 @@ class TestManyToMany(unittest.TestCase):
         assert cp.category_id == c._id
         assert cp.product_id == p._id
 
+        np = c.products.first()
+        assert np._id == p._id and isinstance(np, Product)
+
         c.products.remove(p)
         assert CategoryProducts.query.count() == 0
 
     def test_many_to_many_add_reverse(self):
         c = Category(name='cat')
         c.save()
+
+        c2 = Category(name='cat 2')
+        c2.save()
+
         p = Product(name='product')
         p.save()
+
         p.categories.add(c)
 
         assert CategoryProducts.query.count() > 0
@@ -58,10 +70,13 @@ class TestManyToMany(unittest.TestCase):
         assert cp.category_id == c._id
         assert cp.product_id == p._id
 
+        nc = p.categories.first()
+        assert nc._id == c._id and isinstance(nc, Category)
+
         p.categories.remove(c)
         assert CategoryProducts.query.count() == 0
-
-
+        nc = p.categories.first()
+        assert nc is None
 
 
 if __name__ == '__main__':
