@@ -261,6 +261,14 @@ class classproperty(property):
     def __get__(self, cls, owner):
         return classmethod(self.fget).__get__(None, owner)()
 
+def create_through_class(left, right, left_column_name, right_column_name):
+    name = '%s%s' % (right.__name__, left.__name__)
+    through_class = type(name, (MongoModel,), {
+        left_column_name: Column(ObjectId),
+        right_column_name: Column(ObjectId)
+    })
+    return through_class
+
 def process_any_remaining_relationships():
     t = []
     for rel in relationships_reg:
@@ -289,8 +297,26 @@ def process_any_remaining_relationships():
                 t.append(rel)
             else:
                 # we now create a through class
-                create_through_class(left, right, left_column, right_column)
+                left_id_col_name = '%s_id' % inflection.singularize(left.__name__).lower()
+                right_id_col_name ='%s_id' % inflection.singularize(right.__name__).lower()
 
+                through_class = create_through_class(left, right, left_id_col_name, right_id_col_name)
+
+                left_id_col = getattr(through_class, '%s_id' % inflection.singularize(left.__name__).lower())
+                right_id_col = getattr(through_class, '%s_id' % inflection.singularize(right.__name__).lower())
+
+
+                RelationshipHasAndBelongsTo(left, right,
+                                            through=through_class,
+                                            left_id_column=left_id_col, right_id_column=right_id_col)
+
+                # now we swap and add another relationship
+                RelationshipHasAndBelongsTo(right, left,
+                                            through=through_class,
+                                            left_id_column=right_id_col,
+                                            right_id_column=left_id_col)
+
+                t.append(rel)
 
         elif rel['relationship'] == 'belongs_to':
             # are we yet defined
