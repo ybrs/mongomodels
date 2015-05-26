@@ -279,6 +279,13 @@ def process_any_remaining_relationships():
                 RelationshipHasAndBelongsTo(left, right,
                                             through=through_class,
                                             left_id_column=left_id_col, right_id_column=right_id_col)
+
+                # now we swap and add another relationship
+                RelationshipHasAndBelongsTo(right, left,
+                                            through=through_class,
+                                            left_id_column=right_id_col,
+                                            right_id_column=left_id_col)
+
                 t.append(rel)
             else:
                 # we now create a through class
@@ -638,8 +645,8 @@ class RelationshipQueryThrough(Query):
         creates a record in
             UserProduct - user_id: 1, product_id: 1
 
-        :param instance:
-        :return:
+        :param instance: the instance to be added eg: product
+        :return: owner instance
         """
         self.owner.save()
         if not instance._id:
@@ -660,10 +667,20 @@ class RelationshipQueryThrough(Query):
         setattr(instance, self.right_rel_column.name, getattr(instance, '_id'))
         instance.save()
 
+        return self.owner
+
     def remove(self, instance):
         self.owner.save()
-        setattr(instance, self.rel_column, None)
-        instance.save()
+        if not instance._id:
+            instance.save()
+
+        through_record = self.through.query.filter({
+            self.left_rel_column.name: instance._id,
+            self.right_rel_column.name: self.owner._id
+        }).first()
+
+        if through_record:
+            through_record.delete()
 
 
 if __name__ == "__main__":

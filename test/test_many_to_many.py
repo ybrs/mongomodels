@@ -32,7 +32,7 @@ class TestManyToMany(unittest.TestCase):
         client.testdb.category_products.remove()
 
 
-    def test_many_to_many(self):
+    def test_many_to_many_add(self):
         c = Category(name='cat')
         c.save()
         p = Product(name='product')
@@ -42,6 +42,26 @@ class TestManyToMany(unittest.TestCase):
         cp = CategoryProducts.query.first()
         assert cp.category_id == c._id
         assert cp.product_id == p._id
+
+        c.products.remove(p)
+        assert CategoryProducts.query.count() == 0
+
+    def test_many_to_many_add_reverse(self):
+        c = Category(name='cat')
+        c.save()
+        p = Product(name='product')
+        p.save()
+        p.categories.add(c)
+
+        assert CategoryProducts.query.count() > 0
+        cp = CategoryProducts.query.first()
+        assert cp.category_id == c._id
+        assert cp.product_id == p._id
+
+        p.categories.remove(c)
+        assert CategoryProducts.query.count() == 0
+
+
 
 
 if __name__ == '__main__':
