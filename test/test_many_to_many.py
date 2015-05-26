@@ -12,22 +12,36 @@ from mongomodels import connections, MongoModel, String, Integer, \
 class Category(MongoModel):
     name = Column(String)
 
+class CategoryProducts(MongoModel):
+    category_id = Column(String)
+    product_id = Column(String)
+
 class Product(MongoModel):
-    has_and_belongs_to(Category)
+    has_and_belongs_to(Category, through=CategoryProducts)
     name = Column(String)
 
-class TestColumns(unittest.TestCase):
+class TestManyToMany(unittest.TestCase):
 
     def setUp(self):
         #
         client = pymongo.MongoClient()
         connections.add(client.testdb)
         # start fresh
-        client.testdb.students.remove()
-        client.testdb.classes.remove()
+        client.testdb.categories.remove()
+        client.testdb.products.remove()
+        client.testdb.category_products.remove()
+
 
     def test_many_to_many(self):
-        pass
+        c = Category(name='cat')
+        c.save()
+        p = Product(name='product')
+        c.products.add(p)
+
+        assert CategoryProducts.query.count() > 0
+        cp = CategoryProducts.query.first()
+        assert cp.category_id == c._id
+        assert cp.product_id == p._id
 
 
 if __name__ == '__main__':

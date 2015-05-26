@@ -264,17 +264,41 @@ class classproperty(property):
 def process_any_remaining_relationships():
     t = []
     for rel in relationships_reg:
-        # are we yet defined
-        klass = model_registery.get(rel['called_in_class'])
-        if isinstance(rel['other'], str):
-            other = model_registery.get(rel['other'].capitalize())
-        else:
-            other = rel['other']
+        if rel['relationship'] == 'has_and_belongs_to':
+            left = model_registery.get(rel['called_in_class'])
+            if isinstance(rel['other'], str):
+                right = model_registery.get(rel['other'].capitalize())
+            else:
+                right = rel['other']
 
-        if klass and other:
-            rel.pop('other')
-            RelationshipBelongsTo(klass, other, **rel)
-            t.append(rel)
+            if rel['through']:
+                # just sanity check
+                through_class = rel['through']
+                left_id_col = getattr(through_class, '%s_id' % inflection.singularize(left.__name__).lower())
+                right_id_col = getattr(through_class, '%s_id' % inflection.singularize(right.__name__).lower())
+                RelationshipHasAndBelongsTo(left, right,
+                                            through=through_class,
+                                            left_id_column=left_id_col, right_id_column=right_id_col)
+                t.append(rel)
+            else:
+                # we now create a through class
+                create_through_class(left, right, left_column, right_column)
+
+
+        elif rel['relationship'] == 'belongs_to':
+            # are we yet defined
+            klass = model_registery.get(rel['called_in_class'])
+            if isinstance(rel['other'], str):
+                other = model_registery.get(rel['other'].capitalize())
+            else:
+                other = rel['other']
+
+            if klass and other:
+                rel.pop('other')
+                RelationshipBelongsTo(klass, other, **rel)
+                t.append(rel)
+        else:
+            raise Exception('unknown relationship type - %s' % rel['relationship'])
 
     for r in t:
         relationships_reg.remove(r)
@@ -323,6 +347,12 @@ class MongoModel(object):
     @classmethod
     def query_from_connection(self, connection):
         return Query(from_=self, connection=connection)
+
+    @classmethod
+    def get_by_id(cls, object_id):
+        from bson import json_util, ObjectId as BsonObjectId
+
+        return cls.query.filter_by(_id= BsonObjectId(object_id)).first()
 
     def validate(self):
         for k, v in self.__class__.__columns__.iteritems():
@@ -458,6 +488,7 @@ class Query(object):
     def all(self):
         return [self.from_(**v) for v in self.get_cursor()]
 
+
 class RelationshipHasOne(object):
     """
     this is used in reverse of belongs_to, RelationshipBelongsTo
@@ -470,6 +501,38 @@ class RelationshipHasOne(object):
     def __get__(self, instance, owner):
         return RelationshipHasOneQuery(self.other, instance, self.rel_column).\
             filter({'_id': getattr(instance, self.rel_column)}).first()
+
+class RelationshipHasAndBelongsTo(object):
+    """
+    this is the property added by belongs_to(obj) helper.
+
+    """
+    def __init__(self, left, right, through, left_id_column, right_id_column, **kwargs):
+        self.left = left
+        self.right = right
+        self.through = through
+        self.left_id_column = left_id_column
+        self.right_id_column = right_id_column
+
+        # add getter property to left
+        # user.projects
+        prop_name = inflection.pluralize(self.left.__name__).lower()
+        setattr(right, prop_name, self)
+
+        # add getter property to right
+
+
+    def __get__(self, instance, owner):
+        """
+        owner is the class Category
+        instance is category (Category instance)
+        """
+        return RelationshipQueryThrough(from_=self.left,
+                                        through=self.through,
+                                         owner_instance=instance,
+                                         left_rel_column=self.left_id_column,
+                                         right_rel_column=self.right_id_column)
+
 
 class RelationshipBelongsTo(object):
     """
@@ -538,6 +601,63 @@ class RelationshipQuery(Query):
     def add(self, instance):
         self.owner.save()
         setattr(instance, self.rel_column, getattr(self.owner, '_id'))
+        instance.save()
+
+    def remove(self, instance):
+        self.owner.save()
+        setattr(instance, self.rel_column, None)
+        instance.save()
+
+class RelationshipQueryThrough(Query):
+    def __init__(self, from_, through,
+                 owner_instance, left_rel_column, right_rel_column):
+        """
+
+        :param from_: query from class eg: User
+        :param through: query through class eg: UserProduct
+        :param owner_instance: query attached to instance eg: user
+        :param left_rel_column: eg: Column(user_id)
+        :param right_rel_column: eg: Column(product_id)
+        """
+
+        self.owner = owner_instance
+        self.left_rel_column = left_rel_column
+        self.right_rel_column = right_rel_column
+        self.through = through
+
+        super(RelationshipQueryThrough, self).__init__(from_=from_)
+
+
+    def add(self, instance):
+        """
+
+        find through instance eg:
+
+        user.add(product)
+
+        creates a record in
+            UserProduct - user_id: 1, product_id: 1
+
+        :param instance:
+        :return:
+        """
+        self.owner.save()
+        if not instance._id:
+            instance.save()
+
+        through_record = self.through.query.filter({
+            self.left_rel_column.name: self.owner._id,
+            self.right_rel_column.name: instance._id
+        }).first()
+
+        if not through_record:
+            through_record = self.through()
+            setattr(through_record, self.right_rel_column.name, self.owner._id)
+            setattr(through_record, self.left_rel_column.name, instance._id)
+            through_record.save()
+
+        setattr(instance, self.left_rel_column.name, getattr(self.owner, '_id'))
+        setattr(instance, self.right_rel_column.name, getattr(instance, '_id'))
         instance.save()
 
     def remove(self, instance):
