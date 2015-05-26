@@ -12,10 +12,6 @@ from mongomodels import connections, MongoModel, String, Integer, \
 class Category(MongoModel):
     name = Column(String)
 
-class CategoryProducts(MongoModel):
-    category_id = Column(String)
-    product_id = Column(String)
-
 class Product(MongoModel):
     has_and_belongs_to(Category)
     name = Column(String)
@@ -42,16 +38,12 @@ class TestManyToMany(unittest.TestCase):
         p = Product(name='product')
         c.products.add(p)
 
-        assert CategoryProducts.query.count() > 0
-        cp = CategoryProducts.query.first()
-        assert cp.category_id == c._id
-        assert cp.product_id == p._id
-
         np = c.products.first()
         assert np._id == p._id and isinstance(np, Product)
 
+        assert len(list(c.products)) > 0
         c.products.remove(p)
-        assert CategoryProducts.query.count() == 0
+        assert len(list(c.products)) == 0
 
     def test_many_to_many_add_reverse(self):
         c = Category(name='cat')
@@ -65,18 +57,12 @@ class TestManyToMany(unittest.TestCase):
 
         p.categories.add(c)
 
-        assert CategoryProducts.query.count() > 0
-        cp = CategoryProducts.query.first()
-        assert cp.category_id == c._id
-        assert cp.product_id == p._id
-
         nc = p.categories.first()
         assert nc._id == c._id and isinstance(nc, Category)
 
+        assert len(list(p.categories)) > 0
         p.categories.remove(c)
-        assert CategoryProducts.query.count() == 0
-        nc = p.categories.first()
-        assert nc is None
+        assert len(list(p.categories)) == 0
 
 
 if __name__ == '__main__':
