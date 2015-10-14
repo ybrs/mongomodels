@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1'
+VERSION = '0.1.1'
 DESCRIPTION = 'simple object relational mapping (ORM) for mongodb'
 
 setup(
