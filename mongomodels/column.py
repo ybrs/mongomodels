@@ -131,6 +131,10 @@ class Criteria(object):
 
         return {left: {self.op: right}}
 
+    def __repr__(self):
+        return '<Criteria %s>' % self.as_mongo_expression()
+
+
 class NestedCriteria(object):
     def __init__(self, op, args):
         self.op = op
@@ -213,6 +217,36 @@ class Column(object):
     def __ge__(self, other):
         return Criteria(op="$gte", left=self, right=other)
 
+    def exists(self):
+        """
+        check if the field exists
+        """
+        return Criteria(op="$exists", left=self, right=True)
+
+    def iexact(self, other):
+        """string field exactly matches value (case insensitive)"""
+
+    def contains(self, other):
+        """string field contains value"""
+
+    def icontains(self, other):
+        """string field contains value (case insensitive)"""
+
+    def startswith(self, other):
+        """ string field starts with value """
+
+    def istartswith(self, other):
+        """ string field starts with value (case insensitive)
+        """
+    def endswith(self, other):
+        """string field ends with value"""
+
+    def iendswith(self, other):
+        """string field ends with value (case insensitive)"""
+
+    def match(self, other):
+        """performs an $elemMatch so you can match an entire document within an array """
+
     def mod_(self, other):
         """
         see http://docs.mongodb.org/manual/reference/operator/query/mod/#op._S_mod
@@ -223,7 +257,7 @@ class Column(object):
         """
         see http://docs.mongodb.org/manual/reference/operator/query/regex/#op._S_regex
         """
-        raise Exception('not implemented')
+        return Criteria(op="$regexp", left=self, right=other)
 
     def type_(self, other):
         """
@@ -362,7 +396,7 @@ class MongoModel(object):
 
     def __repr__(self):
         col_repr = []
-        for k, v in self.__columns__.iteritems():
+        for k in sorted(self.__columns__.keys()):
             ov = getattr(self, k)
             if len(str(ov)) > 50:
                 ov = ov[0:50]
@@ -461,7 +495,15 @@ class Query(object):
         return self.connection.pymongo_connection[self.from_.__collection__]
 
     def sort(self, *args):
-        self.sort_ = args
+        t = []
+        for arg in args:
+            if isinstance(arg, Column):
+                t.append(arg.name)
+            else:
+                t.append(arg)
+
+        self.sort_ = t
+        print self.sort_
         return self
 
     def get_cursor(self):
@@ -587,10 +629,16 @@ class RelationshipBelongsTo(object):
             # project.user
             backref = inflection.singularize(self.other.__name__).lower()
 
+
         setattr(other, prop_name, self)
         self.rel_column = backref_id
-        klass.__columns__[backref_id] = Column(ObjectId)
+        column = Column(ObjectId)
+        column.name = backref_id
+        klass.__columns__[backref_id] = column
+        setattr(klass, backref_id, column)
         setattr(klass, backref, RelationshipHasOne(klass, other, backref_id))
+        print ">>>", backref
+
 
     def __get__(self, instance, owner):
         return RelationshipQuery(self.klass, instance, self.rel_column).\
