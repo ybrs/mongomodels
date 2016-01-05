@@ -398,7 +398,10 @@ class MongoModel(object):
         col_repr = []
         for k in sorted(self.__columns__.keys()):
             ov = getattr(self, k)
-            ov = ov[0:50]
+            try:
+                ov = ov[0:50]
+            except:
+                pass
             col_repr.append('%s:%s' % (k, ov))
         return u'<%s(%s) object at  %s>' % (self.__class__.__name__, ' '.join(col_repr), id(self))
 
